@@ -67,45 +67,68 @@ PAT scoped to this repo with **Actions: Read and write**, then a cron-job.org jo
 | Headers | `Accept: application/vnd.github+json`, `Authorization: Bearer <PAT>`, `X-GitHub-Api-Version: 2022-11-28` |
 | Body | `{"ref":"main"}` |
 
-## Configure — `watch.json`
+## Configure — `watches.json` (v2: many users, many watches)
+
+Design and roadmap: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ```jsonc
 {
-  "movie": "Avengers: Doomsday",
-  "date": "2026-12-17",
-  "seats_needed": 2,
-  "language": "English",
-  "format_must_include": ["3D"],
-  "district_url": "https://www.district.in/movies/<slug>-in-chennai-MV<id>?fromdate={date}",
-  "bms_url": "https://in.bookmyshow.com/movies/chennai/<slug>/buytickets/ET<id>/{yyyymmdd}",
-  "groups": [
-    { "name": "GK Porur", "match": "\\bgk\\b.*porur", "alert_on_open": true, "alert_on_seats": true },
-    { "name": "PVR IV 3D", "match": "\\bpvr\\b|\\binox\\b", "format_match": "infinity vision.*3d",
-      "alert_on_open": true, "alert_on_seats": true }
-  ],
-  "seat_alert_shows_before": "14:30",
-  "call_cooldown_minutes": 10
+  "users": {
+    "sabari": { "telegram_chat_id": "env:TELEGRAM_CHAT_ID", "phone": "env:CALL_TO",
+                "callmebot_user": "env:CALLMEBOT_TG_USER", "calls": true }
+  },
+  "watches": [{
+    "id": "doomsday-chennai",
+    "users": ["sabari"],
+    "movie": "Avengers: Doomsday", "date": "2026-12-17",
+    "sources": {
+      "district": { "url": "https://www.district.in/movies/<slug>-in-chennai-MV<id>?fromdate={date}" },
+      "bms":      { "url": "https://in.bookmyshow.com/movies/chennai/<slug>/buytickets/ET<id>/{yyyymmdd}", "every_minutes": 20 }
+    },
+    "language": "English", "formats": ["3D"], "min_seats": 1,
+    "show_from": null, "show_to": null, "call_cooldown_minutes": 10,
+    "theatres": [
+      { "name": "GK Porur", "match": "\\bgk\\b.*porur" },
+      { "name": "Any Infinity Vision 3D", "match": ".", "format_match": "infinity vision", "sources": ["district"] }
+    ]
+  }]
 }
 ```
 
-`match` is a case-insensitive regex tested against the District cinema name and the
-BMS venue slug (hyphens → spaces). After changing the target, delete `watch_state.json`.
+- `"env:NAME"` values are read from the environment, so the file holds no secrets or phone numbers.
+- Watches that share a page are fetched **once** per round and fanned out to every watch.
+- `theatres[].match` is a case-insensitive regex on the District cinema name / BMS venue slug;
+  `format_match` filters screen format (District only). Groups are checked in order.
+- `watches.example.json` shows a second user with different preferences.
+
+Find exact cinema names/IDs/formats for a watch, and validate the file:
+
+```bash
+python -m moviealert theatres doomsday-chennai
+python -m moviealert check-config
+```
 
 ## Run locally
 
 ```bash
 pip install -r requirements.txt
-python watcher.py --dry-run                   # what matches right now (no alerts)
-python watcher.py --test-call                 # test Telegram + call setup
-caffeinate -i python watcher.py --loop 120    # check every 2 min from your Mac (India IP, no ScraperAPI needed)
+python -m moviealert run --dry-run                  # what matches right now (no alerts)
+python -m moviealert test-call sabari               # test Telegram + call for a user
+caffeinate -i python -m moviealert run --loop 60    # every minute from your Mac (India IP)
+python -m unittest discover -s tests                # engine + config tests
 ```
+
+`python watcher.py [--dry-run | --loop N | --test-call]` still works (thin wrapper).
 
 ## Files
 
-| File | Purpose |
+| Path | Purpose |
 |---|---|
-| `watcher.py` | Multi-theatre District + BMS watcher with phone-call alerts |
-| `watch.json` | Movie / date / theatres / seat preferences |
-| `watch_state.json` | Auto-managed: what's already open, last seat counts, last call |
-| `poller.py`, `config.json`, `state.json` | Original single-theatre BMS poller (still runs, non-blocking) |
-| `.github/workflows/booking-watch.yml` | The runner (dispatched by cron-job.org) |
+| `moviealert/` | Package: `config`, `providers/` (district, bms), `engine` (pure diff), `notify`, `runner`, CLI |
+| `watches.json` / `watches.example.json` | Users + watches (no secrets; `env:` refs) |
+| `watch_state.json` | Auto-managed v2 state (per watch + per page fetch times); v1 state auto-migrates |
+| `tests/` | Unit tests |
+| `docs/ARCHITECTURE.md` | Architecture, data model, roadmap |
+| `watcher.py` | Backwards-compatible entry point |
+| `poller.py`, `config.json`, `state.json` | Original single-theatre BMS poller (disabled in the workflow) |
+| `.github/workflows/booking-watch.yml` | GitHub Actions runner (loops every 60 s) |

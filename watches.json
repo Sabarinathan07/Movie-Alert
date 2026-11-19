@@ -1,0 +1,73 @@
+{
+  "users": {
+    "sabari": {
+      "telegram_chat_id": "env:TELEGRAM_CHAT_ID",
+      "phone": "env:CALL_TO",
+      "callmebot_user": "env:CALLMEBOT_TG_USER",
+      "calls": true
+    }
+  },
+  "watches": [
+    {
+      "id": "doomsday-chennai",
+      "users": [
+        "sabari"
+      ],
+      "movie": "Avengers: Doomsday",
+      "date": "2026-12-17",
+      "sources": {
+        "district": {
+          "url": "https://www.district.in/movies/avengers-doomsday-movie-tickets-in-chennai-MV176735?fromdate={date}"
+        },
+        "bms": {
+          "url": "https://in.bookmyshow.com/movies/chennai/avengers-doomsday/buytickets/ET00526287/{yyyymmdd}",
+          "every_minutes": 20
+        }
+      },
+      "language": "English",
+      "formats": [
+        "3D"
+      ],
+      "min_seats": 1,
+      "show_from": null,
+      "show_to": null,
+      "call_cooldown_minutes": 10,
+      "theatres": [
+        {
+          "name": "GK Cinemas Porur (first choice)",
+          "match": "\\bgk\\b.*porur|porur.*\\bgk\\b",
+          "alert_on_open": true,
+          "alert_on_seats": true
+        },
+        {
+          "name": "AGS Maduravoyal",
+          "match": "\\bags\\b.*maduravoyal|maduravoyal.*\\bags\\b",
+          "alert_on_open": true,
+          "alert_on_seats": true
+        },
+        {
+          "name": "INOX Arcot Road",
+          "match": "\\binox\\b.*(arcot|national)|arcot.*\\binox\\b",
+          "alert_on_open": true,
+          "alert_on_seats": true
+        },
+        {
+          "name": "Backup: SB Cinemas / Vels",
+          "match": "\\bsb[ -]cinemas?\\b|\\bvels\\b",
+          "alert_on_open": true,
+          "alert_on_seats": true
+        },
+        {
+          "name": "Any Infinity Vision 3D theatre",
+          "match": ".",
+          "format_match": "infinity vision",
+          "sources": [
+            "district"
+          ],
+          "alert_on_open": true,
+          "alert_on_seats": true
+        }
+      ]
+    }
+  ]
+}
