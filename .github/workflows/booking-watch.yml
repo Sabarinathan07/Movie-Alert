@@ -1,0 +1,71 @@
+name: booking-watch
+
+on:
+  schedule:
+    # Each run loops for ~25 min checking every 60 s; a new run is queued
+    # every 20 min (concurrency keeps one running + one waiting), so checks
+    # are ~continuous even though GitHub's scheduler is coarse/best-effort.
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}   # lets you trigger a manual run from the Actions tab
+
+# Allow the workflow to commit the updated state file back to the repo.
+permissions:
+  contents: write
+
+concurrency:
+  group: booking-watch
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run poller (legacy single-theatre BMS; disabled to save ScraperAPI credits)
+        if: false
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Route through an India egress so BookMyShow doesn't 403 the
+          # US-based GitHub runner. Set SCRAPERAPI_KEY (or PROXY_URL) as a secret.
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+        run: python poller.py
+
+      - name: Run multi-theatre watcher every 60 s (District + BMS, phone call)
+        timeout-minutes: 30
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+          CALLMEBOT_TG_USER: ${{ secrets.CALLMEBOT_TG_USER }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          CALL_TO: ${{ secrets.CALL_TO }}
+          LOOP_MINUTES: "25"
+        run: |
+          git config user.name "Sabarinathan07"
+          git config user.email "64265337+Sabarinathan07@users.noreply.github.com"
+          end=$(( $(date +%s) + LOOP_MINUTES * 60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            started=$(date +%s)
+            python watcher.py || true
+            # Persist state right away so a crash/cancel never re-alerts.
+            if [[ -n "$(git status --porcelain watch_state.json)" ]]; then
+              git add watch_state.json
+              git commit -q -m "chore: update booking-watch state [skip ci]"
+              git pull -q --rebase origin main && git push -q || echo "state push failed (will retry next loop)"
+            fi
+            sleep $(( 60 - ($(date +%s) - started) > 0 ? 60 - ($(date +%s) - started) : 1 ))
+          done
