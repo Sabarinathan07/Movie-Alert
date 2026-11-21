@@ -8,9 +8,11 @@
     "district:1022274",
     "district:1022289",
     "district:1022304",
-    "district:1037033"
+    "district:1037033",
+    "district:5059"
   ],
   "avail": {
+    "district:5059:35494__1797480000__10__77817": 340,
     "district:1022289:23354": 0,
     "district:1022289:23416": 0,
     "district:1022289:23355": 0,
@@ -45,7 +47,7 @@
     "district:1022257:36549": 0,
     "district:1022257:36550": 0
   },
-  "last_call": 1795274891,
+  "last_call": 1795275073,
   "last_bms": 1795274885,
-  "checked_at": 1795275004
+  "checked_at": 1795275064
 }
